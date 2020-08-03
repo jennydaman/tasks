@@ -20,365 +20,445 @@ License along with this library.  If not, see <http://www.gnu.org/licenses/>.
 -->
 
 <template>
-	<div class="content-wrapper">
-		<div v-if="task"
-			:class="{'disabled': readOnly}"
-			class="flex-container">
-			<div :class="{'editing': edit=='summary'}" class="title">
-				<span class="detail-checkbox">
-					<input :id="'detailsToggleCompleted_' + task.uid"
-						type="checkbox"
-						class="checkbox"
-						name="detailsToggleCompleted"
-						:class="{'disabled': readOnly}"
-						:checked="task.completed"
-						:aria-checked="task.completed"
-						:disabled="readOnly"
-						:aria-label="$t('tasks', 'Task is completed')"
-						@click="toggleCompleted(task)">
-					<label :class="[checkboxColor]" :for="'detailsToggleCompleted_' + task.uid" />
-				</span>
-				<div v-click-outside="() => finishEditing('summary')" class="title-wrapper">
-					<div v-linkify="task.summary"
-						:class="{'strike-through': task.completed}"
-						class="title-text"
-						@click="editProperty('summary', $event)" />
-					<div class="expandable-container">
-						<div class="expandingArea active">
-							<pre><span>{{ tmpTask.summary }}</span><br></pre>
-							<textarea id="summaryInput"
-								v-model="tmpTask.summary"
-								maxlength="200"
-								@keyup.27="cancelEditing('summary')"
-								@keydown.enter.prevent="finishEditing('summary')" />
+	<AppSidebar
+		:title="sidebarTitle"
+		:title-editable="editingTitle"
+		:linkify-title="true"
+		:empty="!task"
+		@start-editing="newTitle = task.summary"
+		@update:titleEditable="editTitle"
+		@update:title="updateTitle"
+		@submit-title="saveTitle"
+		@close="closeDetails()">
+		<!-- <template v-if="task" v-slot:primary-actions>
+			<TaskStatusDisplay :task="task" />
+			<ul class="sections">
+				<li v-show="!readOnly || task.start"
+					:class="{'date': task.startMoment.isValid(), 'editing': edit=='start', 'high': overdue(task.startMoment)}"
+					class="section detail-start">
+					<div v-click-outside="($event) => finishEditing('start', $event)"
+						class="section-content"
+						@click="editProperty('start', $event)">
+						<span class="section-icon">
+							<span :class="[startDateIcon(task.startMoment)]"
+								class="icon" />
+						</span>
+						<span class="section-title">
+							{{ startDateString }}
+						</span>
+						<div v-if="edit=='start'" class="section-edit">
+							<DatetimePicker :value="tmpTask.start.toDate()"
+								:lang="lang"
+								:format="dateFormat"
+								:clearable="false"
+								type="date"
+								:placeholder="$t('tasks', 'Set start date')"
+								class="date"
+								@change="setStartDate" />
+							<DatetimePicker v-if="!allDay"
+								:value="tmpTask.start.toDate()"
+								:lang="lang"
+								:format="timeFormat"
+								:clearable="false"
+								:time-picker-options="timePickerOptions"
+								type="time"
+								:placeholder="$t('tasks', 'Set start time')"
+								class="time"
+								@change="setStartTime" />
 						</div>
 					</div>
+					<div class="section-utils">
+						<button class="inline reactive">
+							<span class="icon sprt-color sprt-checkmark-color" />
+						</button>
+						<button class="delete inline reactive" @click="setProperty('start', null)">
+							<span class="icon icon-sprt-bw sprt-trash" />
+						</button>
+					</div>
+				</li>
+			</ul>
+		</template> -->
+
+		<template v-slot:secondary-actions>
+			<ActionButton v-if="!readOnly"
+				:icon="task.pinned ? 'icon-pinned-off' : 'icon-pinned'"
+				@click="togglePinned(task)">
+				{{ task.pinned ? $t('tasks', 'Unpin') : $t('tasks', 'Pin') }}
+			</ActionButton>
+			<ActionButton
+				icon="icon-download">
+				{{ $t('tasks', 'Download') }}
+			</ActionButton>
+			<ActionButton v-if="!readOnly"
+				icon="icon-delete"
+				@click="removeTask">
+				{{ $t('tasks', 'Delete') }}
+			</ActionButton>
+		</template>
+
+		<template v-slot:tertiary-actions>
+			<span class="detail-checkbox">
+				<input :id="'detailsToggleCompleted_' + task.uid"
+					type="checkbox"
+					class="checkbox"
+					name="detailsToggleCompleted"
+					:class="{'disabled': readOnly}"
+					:checked="task.completed"
+					:aria-checked="task.completed"
+					:disabled="readOnly"
+					:aria-label="$t('tasks', 'Task is completed')"
+					@click="toggleCompleted(task)">
+				<label :class="[checkboxColor]" :for="'detailsToggleCompleted_' + task.uid" />
+			</span>
+		</template>
+
+		<AppSidebarTab v-if="task"
+			id="app-sidebar-tab-details"
+			class="app-sidebar-tab"
+			icon="icon-details"
+			:name="$t('tasks', 'Details')"
+			:order="0">
+			<div :class="{'disabled': readOnly}"
+				class="flex-container">
+				<div class="body">
+					<ul class="sections">
+						<li v-show="!readOnly || task.start"
+							:class="{'date': task.startMoment.isValid(), 'editing': edit=='start', 'high': overdue(task.startMoment)}"
+							class="section detail-start">
+							<div v-click-outside="($event) => finishEditing('start', $event)"
+								class="section-content"
+								@click="editProperty('start', $event)">
+								<span class="section-icon">
+									<span :class="[startDateIcon(task.startMoment)]"
+										class="icon" />
+								</span>
+								<span class="section-title">
+									{{ startDateString }}
+								</span>
+								<div v-if="edit=='start'" class="section-edit">
+									<DatetimePicker :value="tmpTask.start.toDate()"
+										:lang="lang"
+										:format="dateFormat"
+										:clearable="false"
+										type="date"
+										:placeholder="$t('tasks', 'Set start date')"
+										class="date"
+										@change="setStartDate" />
+									<DatetimePicker v-if="!allDay"
+										:value="tmpTask.start.toDate()"
+										:lang="lang"
+										:format="timeFormat"
+										:clearable="false"
+										:time-picker-options="timePickerOptions"
+										type="time"
+										:placeholder="$t('tasks', 'Set start time')"
+										class="time"
+										@change="setStartTime" />
+								</div>
+							</div>
+							<div class="section-utils">
+								<button class="inline reactive">
+									<span class="icon sprt-color sprt-checkmark-color" />
+								</button>
+								<button class="delete inline reactive" @click="setProperty('start', null)">
+									<span class="icon icon-sprt-bw sprt-trash" />
+								</button>
+							</div>
+						</li>
+						<li v-show="!readOnly || task.due"
+							:class="{'date': task.dueMoment.isValid(), 'editing': edit=='due', 'high': overdue(task.dueMoment)}"
+							class="section detail-date">
+							<div v-click-outside="($event) => finishEditing('due', $event)"
+								class="section-content"
+								@click="editProperty('due', $event)">
+								<span class="section-icon">
+									<span :class="[dueDateIcon(task.dueMoment)]"
+										class="icon" />
+								</span>
+								<span class="section-title">
+									{{ dueDateString }}
+								</span>
+								<div v-if="edit=='due'" class="section-edit">
+									<DatetimePicker :value="tmpTask.due.toDate()"
+										:lang="lang"
+										:format="dateFormat"
+										:clearable="false"
+										type="date"
+										:placeholder="$t('tasks', 'Set due date')"
+										class="date"
+										@change="setDueDate" />
+									<DatetimePicker v-if="!allDay"
+										:value="tmpTask.due.toDate()"
+										:lang="lang"
+										:format="timeFormat"
+										:clearable="false"
+										:time-picker-options="timePickerOptions"
+										type="time"
+										:placeholder="$t('tasks', 'Set due time')"
+										class="time"
+										@change="setDueTime" />
+								</div>
+							</div>
+							<div class="section-utils">
+								<button class="inline reactive">
+									<span class="icon sprt-color sprt-checkmark-color" />
+								</button>
+								<button class="delete inline reactive" @click="setProperty('due', null)">
+									<span class="icon icon-sprt-bw sprt-trash" />
+								</button>
+							</div>
+						</li>
+						<li v-show="isAllDayPossible"
+							class="section detail-all-day reactive">
+							<div class="section-content">
+								<input id="isAllDayPossible"
+									type="checkbox"
+									class="checkbox"
+									name="isAllDayPossible"
+									:class="{'disabled': readOnly}"
+									:aria-checked="allDay"
+									:checked="allDay"
+									:disabled="readOnly"
+									@click="toggleAllDay(task)">
+								<label for="isAllDayPossible">
+									<span>{{ $t('tasks', 'All day') }}</span>
+								</label>
+							</div>
+						</li>
+						<li class="section detail-calendar reactive">
+							<div v-click-outside="() => finishEditing('calendar')"
+								class="section-content"
+								@click="editProperty('calendar')">
+								<span class="section-icon">
+									<span :style="{'background-color': task.calendar.color}" class="calendar-indicator" />
+								</span>
+								<div class="detail-multiselect-container blue">
+									<Multiselect
+										:value="task.calendar"
+										:multiple="false"
+										:allow-empty="false"
+										:disabled="readOnly"
+										track-by="id"
+										:placeholder="$t('tasks', 'Select a calendar')"
+										label="displayName"
+										:options="targetCalendars"
+										:close-on-select="true"
+										class="multiselect-vue"
+										@input="changeCalendar"
+										@tag="changeCalendar" />
+								</div>
+							</div>
+						</li>
+						<li class="section detail-class reactive">
+							<div v-click-outside="() => finishEditing('class')"
+								class="section-content"
+								@click="editProperty('class')">
+								<span class="section-icon">
+									<span class="icon sprt-color sprt-privacy" />
+								</span>
+								<div class="detail-multiselect-container blue">
+									<Multiselect
+										:value="classSelect.find( _ => _.type === task.class )"
+										:multiple="false"
+										:allow-empty="false"
+										:disabled="readOnly || task.calendar.isSharedWithMe"
+										track-by="type"
+										:placeholder="$t('tasks', 'Select a classification')"
+										label="displayName"
+										:options="classSelect"
+										:close-on-select="true"
+										class="multiselect-vue"
+										@input="changeClass"
+										@tag="changeClass" />
+								</div>
+							</div>
+						</li>
+						<li v-show="!readOnly || task.status"
+							class="section detail-class reactive">
+							<div v-click-outside="() => finishEditing('status')"
+								class="section-content"
+								@click="editProperty('status')">
+								<span class="section-icon">
+									<span :class="[iconStatus]" class="icon" />
+								</span>
+								<div class="detail-multiselect-container blue">
+									<Multiselect
+										:value="statusSelect.find( _ => _.type === task.status )"
+										:multiple="false"
+										:allow-empty="false"
+										:disabled="readOnly"
+										track-by="type"
+										:placeholder="$t('tasks', 'Select a status')"
+										label="displayName"
+										:options="statusSelect"
+										:close-on-select="true"
+										class="multiselect-vue"
+										@input="changeStatus"
+										@tag="changeStatus" />
+								</div>
+							</div>
+						</li>
+						<li v-show="!readOnly || task.priority"
+							:class="[{'editing': edit=='priority', 'date': task.priority>0}, priorityClass]"
+							class="section detail-priority">
+							<div v-click-outside="() => finishEditing('priority')"
+								class="section-content"
+								@click="editProperty('priority')">
+								<span class="section-icon">
+									<span :class="[iconStar]" class="icon" />
+								</span>
+								<span class="section-title">
+									{{ priorityString }}
+								</span>
+								<div class="section-edit">
+									<input v-model="tmpTask.priority"
+										class="priority-input"
+										type="number"
+										min="0"
+										max="9"
+										@keyup.27="cancelEditing('priority')"
+										@keydown.enter.prevent="finishEditing('priority')">
+									<input v-model="tmpTask.priority"
+										type="range"
+										min="0"
+										max="9"
+										step="1">
+								</div>
+							</div>
+							<div class="section-utils">
+								<button class="inline reactive">
+									<span class="icon sprt-color sprt-checkmark-color" />
+								</button>
+								<button class="delete inline reactive" @click="setProperty('priority', 0)">
+									<span class="icon icon-sprt-bw sprt-trash" />
+								</button>
+							</div>
+						</li>
+						<li v-show="!readOnly || task.complete"
+							:class="{'editing': edit=='complete', 'date': task.complete>0}"
+							class="section detail-complete">
+							<div v-click-outside="() => finishEditing('complete')"
+								class="section-content"
+								@click="editProperty('complete')">
+								<span class="section-icon">
+									<span :class="[iconPercent]" class="icon" />
+								</span>
+								<span class="section-title">
+									{{ completeString }}
+								</span>
+								<div class="section-edit">
+									<input v-model="tmpTask.complete"
+										class="percent-input"
+										type="number"
+										min="0"
+										max="100"
+										@keyup.27="cancelEditing('complete')"
+										@keydown.enter.prevent="finishEditing('complete')">
+									<input v-model="tmpTask.complete"
+										type="range"
+										min="0"
+										max="100"
+										step="1">
+								</div>
+							</div>
+							<div class="section-utils">
+								<button class="inline reactive">
+									<span class="icon sprt-color sprt-checkmark-color" />
+								</button>
+								<button class="delete inline reactive" @click="setProperty('complete', 0)">
+									<span class="icon icon-sprt-bw sprt-trash" />
+								</button>
+							</div>
+						</li>
+						<li v-show="!readOnly || task.categories.length>0" :class="{'active': task.categories.length>0}" class="section detail-categories">
+							<div class="section-content">
+								<span class="section-icon">
+									<span :class="[iconCategories]" class="icon detail-categories" />
+								</span>
+								<div class="detail-multiselect-container">
+									<Multiselect v-if="task.categories"
+										v-model="task.categories"
+										:multiple="true"
+										:searchable="true"
+										:disabled="readOnly"
+										:options="categories"
+										:placeholder="$t('tasks', 'Select categories')"
+										:taggable="true"
+										:tag-placeholder="$t('tasks', 'Add this as a new category')"
+										:close-on-select="false"
+										class="multiselect-vue"
+										@input="updateCategories"
+										@tag="updateCategory" />
+								</div>
+							</div>
+						</li>
+					</ul>
 				</div>
-				<TaskStatusDisplay :task="task" />
-				<button class="reactive inline" @click="togglePinned(task)">
-					<span :class="[{'disabled': readOnly}, iconPinned]" class="icon" />
-				</button>
-				<button class="reactive inline" @click="toggleStarred(task)">
-					<span :class="[{'disabled': readOnly}, iconStar]"
-						class="icon" />
-				</button>
+				<div class="footer">
+					<span v-tooltip="{
+							content: taskInfo,
+							html: true,
+						}"
+						class="info">
+						<span class="icon icon-info" />
+					</span>
+				</div>
 			</div>
-			<div class="body">
-				<ul class="sections">
-					<li v-show="!readOnly || task.start"
-						:class="{'date': task.startMoment.isValid(), 'editing': edit=='start', 'high': overdue(task.startMoment)}"
-						class="section detail-start">
-						<div v-click-outside="($event) => finishEditing('start', $event)"
-							class="section-content"
-							@click="editProperty('start', $event)">
-							<span class="section-icon">
-								<span :class="[startDateIcon(task.startMoment)]"
-									class="icon" />
-							</span>
-							<span class="section-title">
-								{{ startDateString }}
-							</span>
-							<div v-if="edit=='start'" class="section-edit">
-								<DatetimePicker :value="tmpTask.start.toDate()"
-									:lang="lang"
-									:format="dateFormat"
-									:clearable="false"
-									type="date"
-									:placeholder="$t('tasks', 'Set start date')"
-									class="date"
-									@change="setStartDate" />
-								<DatetimePicker v-if="!allDay"
-									:value="tmpTask.start.toDate()"
-									:lang="lang"
-									:format="timeFormat"
-									:clearable="false"
-									:time-picker-options="timePickerOptions"
-									type="time"
-									:placeholder="$t('tasks', 'Set start time')"
-									class="time"
-									@change="setStartTime" />
-							</div>
-						</div>
-						<div class="section-utils">
-							<button class="inline reactive">
-								<span class="icon sprt-color sprt-checkmark-color" />
-							</button>
-							<button class="delete inline reactive" @click="setProperty('start', null)">
-								<span class="icon icon-sprt-bw sprt-trash" />
-							</button>
-						</div>
-					</li>
-					<li v-show="!readOnly || task.due"
-						:class="{'date': task.dueMoment.isValid(), 'editing': edit=='due', 'high': overdue(task.dueMoment)}"
-						class="section detail-date">
-						<div v-click-outside="($event) => finishEditing('due', $event)"
-							class="section-content"
-							@click="editProperty('due', $event)">
-							<span class="section-icon">
-								<span :class="[dueDateIcon(task.dueMoment)]"
-									class="icon" />
-							</span>
-							<span class="section-title">
-								{{ dueDateString }}
-							</span>
-							<div v-if="edit=='due'" class="section-edit">
-								<DatetimePicker :value="tmpTask.due.toDate()"
-									:lang="lang"
-									:format="dateFormat"
-									:clearable="false"
-									type="date"
-									:placeholder="$t('tasks', 'Set due date')"
-									class="date"
-									@change="setDueDate" />
-								<DatetimePicker v-if="!allDay"
-									:value="tmpTask.due.toDate()"
-									:lang="lang"
-									:format="timeFormat"
-									:clearable="false"
-									:time-picker-options="timePickerOptions"
-									type="time"
-									:placeholder="$t('tasks', 'Set due time')"
-									class="time"
-									@change="setDueTime" />
-							</div>
-						</div>
-						<div class="section-utils">
-							<button class="inline reactive">
-								<span class="icon sprt-color sprt-checkmark-color" />
-							</button>
-							<button class="delete inline reactive" @click="setProperty('due', null)">
-								<span class="icon icon-sprt-bw sprt-trash" />
-							</button>
-						</div>
-					</li>
-					<li v-show="isAllDayPossible"
-						class="section detail-all-day reactive">
-						<div class="section-content">
-							<input id="isAllDayPossible"
-								type="checkbox"
-								class="checkbox"
-								name="isAllDayPossible"
-								:class="{'disabled': readOnly}"
-								:aria-checked="allDay"
-								:checked="allDay"
-								:disabled="readOnly"
-								@click="toggleAllDay(task)">
-							<label for="isAllDayPossible">
-								<span>{{ $t('tasks', 'All day') }}</span>
-							</label>
-						</div>
-					</li>
-					<li class="section detail-calendar reactive">
-						<div v-click-outside="() => finishEditing('calendar')"
-							class="section-content"
-							@click="editProperty('calendar')">
-							<span class="section-icon">
-								<span :style="{'background-color': task.calendar.color}" class="calendar-indicator" />
-							</span>
-							<div class="detail-multiselect-container blue">
-								<Multiselect
-									:value="task.calendar"
-									:multiple="false"
-									:allow-empty="false"
-									:disabled="readOnly"
-									track-by="id"
-									:placeholder="$t('tasks', 'Select a calendar')"
-									label="displayName"
-									:options="targetCalendars"
-									:close-on-select="true"
-									class="multiselect-vue"
-									@input="changeCalendar"
-									@tag="changeCalendar" />
-							</div>
-						</div>
-					</li>
-					<li class="section detail-class reactive">
-						<div v-click-outside="() => finishEditing('class')"
-							class="section-content"
-							@click="editProperty('class')">
-							<span class="section-icon">
-								<span class="icon sprt-color sprt-privacy" />
-							</span>
-							<div class="detail-multiselect-container blue">
-								<Multiselect
-									:value="classSelect.find( _ => _.type === task.class )"
-									:multiple="false"
-									:allow-empty="false"
-									:disabled="readOnly || task.calendar.isSharedWithMe"
-									track-by="type"
-									:placeholder="$t('tasks', 'Select a classification')"
-									label="displayName"
-									:options="classSelect"
-									:close-on-select="true"
-									class="multiselect-vue"
-									@input="changeClass"
-									@tag="changeClass" />
-							</div>
-						</div>
-					</li>
-					<li v-show="!readOnly || task.status"
-						class="section detail-class reactive">
-						<div v-click-outside="() => finishEditing('status')"
-							class="section-content"
-							@click="editProperty('status')">
-							<span class="section-icon">
-								<span :class="[iconStatus]" class="icon" />
-							</span>
-							<div class="detail-multiselect-container blue">
-								<Multiselect
-									:value="statusSelect.find( _ => _.type === task.status )"
-									:multiple="false"
-									:allow-empty="false"
-									:disabled="readOnly"
-									track-by="type"
-									:placeholder="$t('tasks', 'Select a status')"
-									label="displayName"
-									:options="statusSelect"
-									:close-on-select="true"
-									class="multiselect-vue"
-									@input="changeStatus"
-									@tag="changeStatus" />
-							</div>
-						</div>
-					</li>
-					<li v-show="!readOnly || task.priority"
-						:class="[{'editing': edit=='priority', 'date': task.priority>0}, priorityClass]"
-						class="section detail-priority">
-						<div v-click-outside="() => finishEditing('priority')"
-							class="section-content"
-							@click="editProperty('priority')">
-							<span class="section-icon">
-								<span :class="[iconStar]" class="icon" />
-							</span>
-							<span class="section-title">
-								{{ priorityString }}
-							</span>
-							<div class="section-edit">
-								<input v-model="tmpTask.priority"
-									class="priority-input"
-									type="number"
-									min="0"
-									max="9"
-									@keyup.27="cancelEditing('priority')"
-									@keydown.enter.prevent="finishEditing('priority')">
-								<input v-model="tmpTask.priority"
-									type="range"
-									min="0"
-									max="9"
-									step="1">
-							</div>
-						</div>
-						<div class="section-utils">
-							<button class="inline reactive">
-								<span class="icon sprt-color sprt-checkmark-color" />
-							</button>
-							<button class="delete inline reactive" @click="setProperty('priority', 0)">
-								<span class="icon icon-sprt-bw sprt-trash" />
-							</button>
-						</div>
-					</li>
-					<li v-show="!readOnly || task.complete"
-						:class="{'editing': edit=='complete', 'date': task.complete>0}"
-						class="section detail-complete">
-						<div v-click-outside="() => finishEditing('complete')"
-							class="section-content"
-							@click="editProperty('complete')">
-							<span class="section-icon">
-								<span :class="[iconPercent]" class="icon" />
-							</span>
-							<span class="section-title">
-								{{ completeString }}
-							</span>
-							<div class="section-edit">
-								<input v-model="tmpTask.complete"
-									class="percent-input"
-									type="number"
-									min="0"
-									max="100"
-									@keyup.27="cancelEditing('complete')"
-									@keydown.enter.prevent="finishEditing('complete')">
-								<input v-model="tmpTask.complete"
-									type="range"
-									min="0"
-									max="100"
-									step="1">
-							</div>
-						</div>
-						<div class="section-utils">
-							<button class="inline reactive">
-								<span class="icon sprt-color sprt-checkmark-color" />
-							</button>
-							<button class="delete inline reactive" @click="setProperty('complete', 0)">
-								<span class="icon icon-sprt-bw sprt-trash" />
-							</button>
-						</div>
-					</li>
-					<li v-show="!readOnly || task.categories.length>0" :class="{'active': task.categories.length>0}" class="section detail-categories">
-						<div class="section-content">
-							<span class="section-icon">
-								<span :class="[iconCategories]" class="icon detail-categories" />
-							</span>
-							<div class="detail-multiselect-container">
-								<Multiselect v-if="task.categories"
-									v-model="task.categories"
-									:multiple="true"
-									:searchable="true"
-									:disabled="readOnly"
-									:options="categories"
-									:placeholder="$t('tasks', 'Select categories')"
-									:taggable="true"
-									:tag-placeholder="$t('tasks', 'Add this as a new category')"
-									:close-on-select="false"
-									class="multiselect-vue"
-									@input="updateCategories"
-									@tag="updateCategory" />
-							</div>
-						</div>
-					</li>
-					<li v-show="!readOnly || task.note" class="section detail-note">
-						<div class="section-content note">
-							<div v-click-outside="() => finishEditing('note')"
-								class="note-body selectable"
-								@click="editProperty('note', $event)">
-								<div :class="{'editing': edit=='note'}" class="content-fakeable">
-									<Markdown id="markdown"
-										:source="task.note"
-										class="display-view" />
-									<div class="edit-view">
-										<div class="expandingArea active">
-											<pre><span>{{ tmpTask.note }}</span><br><br></pre>
-											<textarea id="noteInput" v-model="tmpTask.note" @change="setProperty('note', tmpTask.note)" />
+		</AppSidebarTab>
+		<AppSidebarTab v-if="task"
+			id="app-sidebar-tab-notes"
+			class="app-sidebar-tab"
+			icon="icon-note"
+			:name="$t('tasks', 'Notes')"
+			:order="1">
+			<div :class="{'disabled': readOnly}"
+				class="flex-container">
+				<div class="body">
+					<ul class="sections">
+						<li v-show="!readOnly || task.note" class="section detail-note">
+							<div class="section-content note">
+								<div v-click-outside="() => finishEditing('note')"
+									class="note-body selectable"
+									@click="editProperty('note', $event)">
+									<div :class="{'editing': edit=='note'}" class="content-fakeable">
+										<Markdown id="markdown"
+											:source="task.note"
+											class="display-view" />
+										<div class="edit-view">
+											<div class="expandingArea active">
+												<pre><span>{{ tmpTask.note }}</span><br><br></pre>
+												<textarea id="noteInput" v-model="tmpTask.note" @change="setProperty('note', tmpTask.note)" />
+											</div>
 										</div>
 									</div>
 								</div>
 							</div>
-						</div>
-					</li>
-				</ul>
+						</li>
+					</ul>
+				</div>
 			</div>
-			<div class="footer">
-				<button :style="{visibility: readOnly ? 'hidden' : 'visible'}"
-					class="close-all reactive inline"
-					@click="removeTask">
-					<span class="icon icon-sprt-bw sprt-trash" />
-				</button>
-				<span v-tooltip="{
-						content: taskInfo,
-						html: true,
-					}"
-					class="info">
-					<span class="icon icon-info" />
-				</span>
-				<button class="close-all reactive inline" @click="closeDetails">
-					<span class="icon icon-sprt-bw sprt-hide" />
-				</button>
-			</div>
-		</div>
-		<div v-else class="notice">
-			<span v-if="loading">{{ $t('tasks', 'Loading task from server.') }}</span>
-			<span v-else>{{ $t('tasks', 'Task not found!') }}</span>
-		</div>
-	</div>
+		</AppSidebarTab>
+		<AppSidebarTab v-if="task"
+			id="app-sidebar-tab-reminder"
+			class="app-sidebar-tab"
+			icon="icon-reminder"
+			:name="$t('tasks', 'Reminders')"
+			:order="2">
+			Reminders
+		</AppSidebarTab>
+		<AppSidebarTab v-if="task"
+			id="app-sidebar-tab-repeat"
+			class="app-sidebar-tab"
+			icon="icon-repeat"
+			:name="$t('tasks', 'Repeat')"
+			:order="3">
+			Repeat
+		</AppSidebarTab>
+		<EmptyContent v-else
+			:icon="taskStatusIcon">
+			{{ taskStatusLabel }}
+		</EmptyContent>
+	</AppSidebar>
 </template>
 
 <script>
@@ -388,6 +468,10 @@ import TaskStatusDisplay from './TaskStatusDisplay.vue'
 import { linkify } from '../directives/linkify.js'
 
 import moment from '@nextcloud/moment'
+import ActionButton from '@nextcloud/vue/dist/Components/ActionButton'
+import EmptyContent from '@nextcloud/vue/dist/Components/EmptyContent'
+import AppSidebar from '@nextcloud/vue/dist/Components/AppSidebar'
+import AppSidebarTab from '@nextcloud/vue/dist/Components/AppSidebarTab'
 import DatetimePicker from '@nextcloud/vue/dist/Components/DatetimePicker'
 import Multiselect from '@nextcloud/vue/dist/Components/Multiselect'
 
@@ -396,6 +480,10 @@ import { mapGetters, mapActions } from 'vuex'
 
 export default {
 	components: {
+		AppSidebar,
+		AppSidebarTab,
+		ActionButton,
+		EmptyContent,
 		DatetimePicker,
 		Multiselect,
 		Markdown,
@@ -433,6 +521,7 @@ export default {
 	},
 	data() {
 		return {
+			editingTitle: false,
 			loading: false,
 			edit: '',
 			tmpTask: {
@@ -468,9 +557,19 @@ export default {
 				{ displayName: this.$t('tasks', 'In process'), type: 'IN-PROCESS' },
 				{ displayName: this.$t('tasks', 'Canceled'), type: 'CANCELLED' },
 			],
+			newTitle: '',
 		}
 	},
 	computed: {
+		sidebarTitle() {
+			return this.task ? this.task.summary : ''
+		},
+		taskStatusLabel() {
+			return this.loading ? this.$t('tasks', 'Loading task from server.') : this.$t('tasks', 'Task not found!')
+		},
+		taskStatusIcon() {
+			return this.loading ? 'icon-loading' : 'icon-search'
+		},
 		/**
 		 * Whether we treat the task as read-only.
 		 * We also treat tasks in shared calendars with an access class other than 'PUBLIC'
@@ -817,6 +916,26 @@ export default {
 				this.$nextTick(
 					() => document.getElementById(type + 'Input').focus()
 				)
+			}
+		},
+
+		editTitle(editing) {
+			if (this.readOnly) {
+				return
+			}
+			this.editingTitle = editing
+			if (this.editingTitle) {
+				this.newTitle = this.task.summary
+			}
+		},
+
+		updateTitle(title) {
+			this.newTitle = title
+		},
+
+		saveTitle() {
+			if (this.newTitle !== this.task.summary) {
+				this.setProperty('summary', this.newTitle)
 			}
 		},
 
