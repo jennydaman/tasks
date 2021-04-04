@@ -79,7 +79,7 @@ License along with this library.  If not, see <http://www.gnu.org/licenses/>.
 			</ul>
 		</template> -->
 
-		<template v-slot:secondary-actions>
+		<template #secondary-actions>
 			<ActionButton v-if="!readOnly"
 				:icon="task.pinned ? 'icon-pinned-off' : 'icon-pinned'"
 				@click="togglePinned(task)">
@@ -96,7 +96,7 @@ License along with this library.  If not, see <http://www.gnu.org/licenses/>.
 			</ActionButton>
 		</template>
 
-		<template v-slot:tertiary-actions>
+		<template #tertiary-actions>
 			<span class="detail-checkbox">
 				<input :id="'detailsToggleCompleted_' + task.uid"
 					type="checkbox"
@@ -464,7 +464,7 @@ License along with this library.  If not, see <http://www.gnu.org/licenses/>.
 <script>
 import { overdue } from '../store/storeHelper.js'
 import Markdown from './Markdown.vue'
-import TaskStatusDisplay from './TaskStatusDisplay.vue'
+// import TaskStatusDisplay from './TaskStatusDisplay.vue'
 import { linkify } from '../directives/linkify.js'
 
 import moment from '@nextcloud/moment'
@@ -487,7 +487,7 @@ export default {
 		DatetimePicker,
 		Multiselect,
 		Markdown,
-		TaskStatusDisplay,
+		// TaskStatusDisplay,
 	},
 	directives: {
 		clickOutside: ClickOutside.directive,
