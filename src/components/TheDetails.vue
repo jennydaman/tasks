@@ -21,9 +21,10 @@ License along with this library.  If not, see <http://www.gnu.org/licenses/>.
 
 <template>
 	<AppSidebar
-		:title="sidebarTitle"
+		:title="title"
 		:title-editable="editingTitle"
 		:linkify-title="true"
+		:subtitle="subtitle"
 		:empty="!task"
 		@start-editing="newTitle = task.summary"
 		@update:titleEditable="editTitle"
@@ -561,8 +562,13 @@ export default {
 		}
 	},
 	computed: {
-		sidebarTitle() {
+		title() {
 			return this.task ? this.task.summary : ''
+		},
+		subtitle() {
+			return this.task?.completed
+				? this.$t('tasks', 'Completed {date}', { date: this.task.completedDateMoment.calendar() })
+				: this.$t('tasks', 'Last modified {date}', { date: this.task.modifiedMoment.calendar() })
 		},
 		taskStatusLabel() {
 			return this.loading ? this.$t('tasks', 'Loading task from server.') : this.$t('tasks', 'Task not found!')
